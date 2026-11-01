@@ -25,6 +25,12 @@ jobs:
 
       - run: pyinstaller --noconfirm --windowed --name cn_flow --icon ui/icon.ico --add-data "ui;ui" app.py
 
+      # The build machine's copies of the Windows C runtime (ucrtbase.dll and its api-ms-win-* forwarders) close the
+      # window a few seconds after it opens on Windows 10; every Windows 10 / 11 has the runtime itself.
+      - name: Drop the bundled C runtime
+        shell: pwsh
+        run: Get-ChildItem dist/cn_flow/_internal -File | Where-Object { $_.Name -like 'api-ms-win-*' -or $_.Name -eq 'ucrtbase.dll' } | Remove-Item
+
       - name: Zip
         shell: pwsh
         run: Compress-Archive -Path dist/cn_flow -DestinationPath cn_flow-windows.zip
