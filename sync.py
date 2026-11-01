@@ -56,7 +56,7 @@ def loop(out: Path):
             once(out)
         except Exception as e:                    # offline, GitHub unreachable, a file cut short: try again later
             STATE.update(state="error", checked=datetime.now().strftime("%H:%M"), error=repr(e)[:200])
-        time.sleep(EVERY)
+        time.sleep(EVERY if (out / "meta.json").exists() else 60)     # nothing to show yet: every minute
 
 
 def start(out: Path):
