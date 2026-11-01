@@ -17,3 +17,5 @@ results/
 # probes from the first server tests
 probe*.py
 bench.py
+data/release/
+publish_to_github.cmd

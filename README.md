@@ -2,8 +2,6 @@
 
 沪深 A 股的资金流向排行，以及一个回归分析：资金流入之后，价格是涨还是跌。数据来自通达信公开行情服务器的逐笔成交，每个交易日收盘后自动更新。只做分析展示，不下单，也不给买卖建议。
 
-![界面](docs/screenshot.png)
-
 ## 下载使用（Windows）
 
 1. 打开 [Releases](../../releases/latest)，下载 `cn_flow-windows.zip`。
