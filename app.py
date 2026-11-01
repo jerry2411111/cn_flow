@@ -8,6 +8,9 @@ Usage: .venv\\Scripts\\pythonw.exe -I -X utf8 app.py   (create_shortcut.cmd make
 from __future__ import annotations
 
 import ctypes
+import os
+import shutil
+import subprocess
 import sys
 import threading
 import traceback
@@ -35,6 +38,33 @@ def dark_theme():
         return False
 
 
+def desktop_shortcut():
+    """cn_flow.exe on its first start (and again after its folder moved): a desktop shortcut "A股资金流向" to it.  Not
+    for app.py, which has create_shortcut.cmd.  WScript cannot save a Chinese file name on an English-locale system,
+    so the shortcut is saved under an English name in TEMP and moved."""
+    if not getattr(sys, "frozen", False):
+        return
+    mark, exe = ROOT / "data" / "shortcut.txt", str(Path(sys.executable).resolve())
+    if mark.exists() and mark.read_text(encoding="utf-8") == exe:
+        return
+    try:
+        buf = ctypes.create_unicode_buffer(260)
+        ctypes.windll.shell32.SHGetFolderPathW(None, 0x10, None, 0, buf)          # CSIDL_DESKTOPDIRECTORY
+        tmp = Path(os.environ.get("TEMP") or ROOT) / "cn_flow_shortcut.lnk"
+        ps = ("$s = (New-Object -ComObject WScript.Shell).CreateShortcut($env:CN_LNK); $s.TargetPath = $env:CN_EXE; "
+              "$s.WorkingDirectory = $env:CN_DIR; $s.IconLocation = $env:CN_EXE + ',0'; "
+              "$s.Description = 'A-share money flow'; $s.Save()")
+        subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps], check=True, timeout=60,
+                       env={**os.environ, "CN_LNK": str(tmp), "CN_EXE": exe, "CN_DIR": str(ROOT)},
+                       creationflags=subprocess.CREATE_NO_WINDOW)
+        shutil.move(str(tmp), str(Path(buf.value) / f"{TITLE}.lnk"))
+        mark.parent.mkdir(parents=True, exist_ok=True)
+        mark.write_text(exe, encoding="utf-8")
+    except Exception:                               # no shortcut is no reason to stop: the exe still works
+        (ROOT / "logs").mkdir(exist_ok=True)
+        (ROOT / "logs" / "shortcut_error.log").write_text(traceback.format_exc(), encoding="utf-8")
+
+
 def already_open():
     """a second click on the shortcut brings the open window forward instead of opening another one"""
     global _mutex
@@ -55,6 +85,7 @@ def main():
     import sync
     import ui
     sync.start(ui.OUT)
+    threading.Thread(target=desktop_shortcut, daemon=True).start()
     srv = ThreadingHTTPServer(("127.0.0.1", 0), ui.Handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     webview.create_window(TITLE, f"http://127.0.0.1:{srv.server_port}/", width=1400, height=900, min_size=(900, 600),

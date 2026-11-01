@@ -11,7 +11,9 @@
 1. 打开 [Releases](../../releases/latest)，下载 `cn_flow-windows.zip`。
 2. 解压到任意文件夹，双击 `cn_flow.exe`。
 
-不用安装 Python，也不用下载历史数据。第一次打开时，程序会从本仓库下载最新的计算结果（约 3 MB），之后每 20 分钟检查一次有没有新结果。
+不用安装 Python，也不用下载历史数据。第一次打开时，程序会做两件事：
+- 从本仓库下载基于历史数据算好的最新结果（约 3 MB），之后每 20 分钟检查一次有没有新结果；
+- 在桌面建一个“A股资金流向”快捷方式，以后点它就能打开。
 
 - 需要 Windows 10 或 11 自带的 Edge WebView2。极少数没有它的电脑，可以从 [微软官网](https://developer.microsoft.com/microsoft-edge/webview2/) 安装。
 - 结果文件保存在 exe 旁边的 `results` 文件夹，所以请解压到有写入权限的地方，例如桌面或“文档”，不要放进 Program Files。
