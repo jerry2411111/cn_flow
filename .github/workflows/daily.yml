@@ -1,0 +1,73 @@
+# After each trading day in Beijing: collect the day's tick history from the TDX servers, recompute the rankings and
+# the regression, and publish them to the release "results" (the program downloads them from there).  The day files
+# themselves are kept in the release "history", one tar per month, so the next run starts from them.
+name: daily data
+
+on:
+  schedule:
+    - cron: "30 9 * * 1-5"          # 17:30 Beijing (UTC+8), after the 15:00 close; GitHub may start it later
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  TQDM_MININTERVAL: "60"            # one progress line a minute in the log
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - run: pip install -r requirements.txt
+
+      - name: Restore the day files
+        run: |
+          mkdir -p hist data/days data/ref
+          gh release download history --dir hist
+          for f in hist/days-*.tar; do tar -xf "$f" -C data/days; done
+          cp hist/calendar.json data/ref/
+          touch hist/.start
+          ls data/days | wc -l
+
+      - name: Collect the new days and analyse
+        run: python -X utf8 collect.py update --threads 48
+
+      - name: Keep the new day files
+        run: |
+          cd data/days
+          for m in $(find . -name '2*.parquet' -newer ../../hist/.start | sed -E 's|^\./([0-9]{6}).*|\1|' | sort -u); do
+            tar -cf "../../hist/days-$m.tar" $m??.parquet
+            gh release upload history "../../hist/days-$m.tar" --clobber
+          done
+          cd ../..
+          gh release upload history data/ref/calendar.json --clobber
+
+      - name: Publish the results
+        run: |
+          gh release upload results results/rank_stocks.json.gz results/rank_sectors.json.gz \
+            results/regression.json.gz results/regression.csv results/last_update.json --clobber
+          gh release upload results results/meta.json --clobber      # last: the program downloads when this changes
+
+      - name: Record the day in the repository
+        run: |
+          jq -n --slurpfile m results/meta.json --slurpfile u results/last_update.json \
+            '{last_day: $m[0].last_day, days: $m[0].days, stocks: $m[0].stocks, generated: $m[0].generated, update: $u[0]}' > status.json
+          cat status.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add status.json
+          git diff --cached --quiet || { git commit -m "data $(jq -r .last_day status.json)" && git push; }

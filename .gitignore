@@ -1,0 +1,19 @@
+.venv/
+__pycache__/
+*.pyc
+logs/
+build/
+dist/
+*.spec
+
+# data: the tick summaries live in the release "history", the results in the release "results"
+data/days/
+data/webview/
+data/collect.lock
+data/ref/*
+!data/ref/industry_names.csv
+results/
+
+# probes from the first server tests
+probe*.py
+bench.py

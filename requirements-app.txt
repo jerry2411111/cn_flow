@@ -1,0 +1,2 @@
+# the desktop program alone (app.py, ui.py, sync.py): Windows, uses the Edge WebView2 runtime
+pywebview==6.2.1

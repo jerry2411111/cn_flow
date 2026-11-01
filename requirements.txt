@@ -1,0 +1,6 @@
+# collecting and analysing (collect.py, analyze.py; the GitHub workflow uses these)
+pytdx==1.72
+pandas==3.1.0
+numpy==2.5.4
+pyarrow==26.0.0
+tqdm==4.70.1

@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A股资金流向</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10); --hover: rgba(11,11,11,0.04);
+  --up: #e34948; --down: #008300; --mid: #f0efec; --accent: #2a78d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10); --hover: rgba(255,255,255,0.05);
+    --up: #e66767; --down: #0ca30c; --mid: #383835; --accent: #3987e5;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10); --hover: rgba(255,255,255,0.05);
+  --up: #e66767; --down: #0ca30c; --mid: #383835; --accent: #3987e5;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; }
+header { padding: 16px 20px 8px; }
+h1 { font-size: 20px; margin: 0 0 4px; font-weight: 600; }
+.status { color: var(--ink2); font-size: 13px; }
+.note { color: var(--muted); font-size: 12px; margin-top: 2px; }
+nav { display: flex; gap: 4px; padding: 0 20px; border-bottom: 1px solid var(--grid); overflow-x: auto; }
+nav button { border: 0; background: none; color: var(--ink2); padding: 10px 14px; font: inherit; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
+nav button.on { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+main { padding: 12px 20px 40px; }
+section { display: none; }
+section.on { display: block; }
+.fresh { color: var(--ink2); font-size: 12px; margin: 0 0 8px; }
+.fresh b { color: var(--ink); }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 4px 0 12px; }
+.seg { display: inline-flex; border: 1px solid var(--ring); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: var(--surface); color: var(--ink2); padding: 5px 10px; font: inherit; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--ring); }
+.seg button.on { background: var(--accent); color: #fff; }
+label.lb { color: var(--ink2); font-size: 13px; }
+input[type=search], select { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--ring); border-radius: 8px; padding: 5px 8px; }
+input[type=search] { width: 180px; }
+.wrap { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { padding: 6px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--grid); }
+th { color: var(--ink2); font-weight: 500; font-size: 13px; position: sticky; top: 0; background: var(--surface); }
+th[data-sort] { cursor: pointer; user-select: none; }
+th[data-sort]:hover { color: var(--ink); }
+th.sorted { color: var(--ink); font-weight: 600; }
+td.l, th.l { text-align: left; }
+tbody tr:hover { background: var(--hover); }
+td.muted { color: var(--muted); }
+.tag { display: inline-block; font-size: 11px; line-height: 16px; padding: 0 5px; margin-left: 6px; border-radius: 4px; border: 1px solid; vertical-align: 1px; }
+.tag.up { color: var(--ink); border-color: var(--up); }
+.tag.dn { color: var(--ink); border-color: var(--down); }
+.bar { display: inline-flex; width: 120px; height: 10px; vertical-align: middle; margin-left: 8px; }
+.bar span { flex: 1; display: flex; }
+.bar span:first-child { justify-content: flex-end; border-right: 1px solid var(--axis); }
+.bar i { display: block; height: 100%; border-radius: 0 3px 3px 0; }
+.bar span:first-child i { border-radius: 3px 0 0 3px; background: var(--down); }
+.bar span:last-child i { background: var(--up); }
+.pager { display: flex; align-items: center; gap: 10px; margin-top: 10px; color: var(--ink2); font-size: 13px; }
+.pager button { font: inherit; border: 1px solid var(--ring); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 4px 10px; cursor: pointer; }
+.pager button:disabled { color: var(--muted); cursor: default; }
+.empty { padding: 30px; text-align: center; color: var(--muted); }
+.matrix td { text-align: center; min-width: 92px; }
+.matrix td .v { font-weight: 500; }
+.matrix td .t { display: block; font-size: 11px; color: var(--ink2); }
+.matrix td.sig .v { font-weight: 700; }
+.matrix th.rowh { text-align: left; }
+.matrix th { position: static; text-align: center; }
+.matrix .g { border-left: 1px solid var(--axis); }
+.explain { max-width: 860px; color: var(--ink2); font-size: 13px; }
+.explain b { color: var(--ink); }
+.help { max-width: 860px; }
+.help h3 { font-size: 15px; margin: 18px 0 4px; }
+.help p, .help li { color: var(--ink2); }
+.legend { display: flex; gap: 14px; align-items: center; color: var(--ink2); font-size: 12px; margin: 8px 0; }
+.legend i { display: inline-block; width: 14px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; }
+@media (max-width: 640px) { header, main { padding-left: 16px; padding-right: 16px; } nav { padding: 0 8px; } input[type=search] { width: 140px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>A股资金流向</h1>
+  <div class="status" id="status">读取中…</div>
+  <div class="note">数据来自通达信公开行情服务器的逐笔成交，每个交易日收盘后自动更新。本页只做分析展示：不下单，也不给买卖建议。</div>
+</header>
+<nav>
+  <button data-tab="stocks" class="on">个股排行</button>
+  <button data-tab="sectors">板块排行</button>
+  <button data-tab="reg">回归分析</button>
+  <button data-tab="help">说明</button>
+</nav>
+<main>
+  <section id="stocks" class="on">
+    <div class="fresh"></div>
+    <div class="controls">
+      <label class="lb">过去</label><span class="seg" data-k="stocks"></span><label class="lb">个交易日</label>
+      <label class="lb">排序</label><span class="seg" data-flow="stocks"></span>
+      <input type="search" id="s-q" placeholder="代码或名称">
+      <label class="lb">行业 <select id="s-ind"><option value="">全部</option></select></label>
+    </div>
+    <div class="wrap"><table id="s-table"></table></div>
+    <div class="pager" id="s-pager"></div>
+  </section>
+
+  <section id="sectors">
+    <div class="fresh"></div>
+    <div class="controls">
+      <span class="seg" id="g-type"><button data-v="hy1" class="on">行业·一级</button><button data-v="hy2">行业·二级</button><button data-v="gn">概念</button></span>
+      <label class="lb">过去</label><span class="seg" data-k="sectors"></span><label class="lb">个交易日</label>
+      <label class="lb">排序</label><span class="seg" data-flow="sectors"></span>
+      <input type="search" id="g-q" placeholder="板块或成分股">
+    </div>
+    <div class="wrap"><table id="g-table"></table></div>
+    <div class="pager" id="g-pager"></div>
+  </section>
+
+  <section id="reg">
+    <div class="controls">
+      <span class="seg" id="r-level"><button data-v="stock" class="on">个股</button><button data-v="hy1">行业·一级</button><button data-v="hy2">行业·二级</button><button data-v="gn">概念</button></span>
+      <label class="lb">流入时价格</label><span class="seg" id="r-cond"><button data-v="all" class="on">全部</button><button data-v="up">上涨</button><button data-v="down">下跌</button></span>
+    </div>
+    <div class="legend"><span><i style="background:var(--up)"></i>+ 涨</span><span><i style="background:var(--down)"></i>− 跌</span><span>和 0 比；粗体：|t| ≥ 2，颜色越深 |t| 越大</span></div>
+    <div class="wrap"><table class="matrix" id="r-table"></table></div>
+    <p class="explain" id="r-explain"></p>
+  </section>
+
+  <section id="help">
+    <div class="help">
+      <h3>数据从哪来</h3>
+      <p>通达信公开行情服务器的历史逐笔成交（交易所每 3 秒一次的成交快照），直接连服务器取，不需要客户端，也不需要登录。范围是沪深两市 A 股（主板、创业板、科创板），北交所的股票列表接口取不到，暂不包括。每个交易日收盘后更新一次。</p>
+      <h3>资金流怎么算</h3>
+      <p>每一笔的成交金额 = 价格 × 成交手数 × 100。服务器给每一笔标了方向：成交在卖方报价上（买方主动去买）算<b>流入</b>，成交在买方报价上（卖方主动去卖）算<b>流出</b>。<b>净流入 = 流入 − 流出</b>。例：某股一天主动买 11.89 亿、主动卖 8.89 亿，净流入 +3.00 亿。</p>
+      <h3>有没有用买卖价差（bid-ask spread）</h3>
+      <p>没有。历史逐笔里没有当时的买一、卖一报价，算不出价差；方向直接用服务器给的买卖标记。我们核对过：这个标记和“比上一笔价格高算买、低算卖”的规则约 95% 一致。</p>
+      <h3>哪些成交不算进资金流</h3>
+      <ul>
+        <li>开盘、收盘集合竞价，盘后定价成交，9:15–9:25 的竞价预演：这些没有主动方，只算进成交额。</li>
+        <li>涨跌停价上的成交：当天最高价就是涨停价时，涨停价上的成交不算。封住涨停时卖一没有挂单，成交都是卖方去砸排队的买单，会被标成“主动卖”，反映不了真实的买入意愿。跌停同理（当天最低价就是跌停价时）。涨跌停幅度：创业板、科创板 20%；主板 10%，名称带 ST 的 5%。</li>
+      </ul>
+      <h3>表里各列</h3>
+      <ul>
+        <li><b>占流通市值</b>（默认排序）：净流入 ÷（最新流通股本 × 最后一天收盘价）。大盘股的净流入金额天然更大，按金额排它们会一直在前面；除以流通市值后，大小不同的股票才能放在一起比。</li>
+        <li><b>占成交额</b>：净流入 ÷ 同期成交额，等于“平均每天净流入 ÷ 平均每天成交额”，即成交里买方主动多出来的比例。如果改成“净流入合计 ÷ 平均每天成交额”，只是整列乘以 k，排序和回归结果都不变。成交很少的股票这个比例容易偏大。</li>
+        <li><b>净流入</b>：过去 k 个交易日每天净流入的合计（金额）。只作参考，不同大小的股票之间不可比。</li>
+        <li><b>条形</b>：表示当前排序口径的数值，向右红色为流入，向左绿色为流出，按本页最大值缩放。</li>
+        <li><b>流入时价格变动</b>：和资金流同一个 k 日窗口的涨跌：资金流加总的是最近 k 个交易日，价格变动就是从 k 个交易日前的收盘到最后一天收盘。例：过去 7 日 = 这 7 天的净流入合计，和 7 个交易日前收盘到最新收盘的涨跌。已按分红、送转、配股复权。</li>
+        <li><b>板块</b>：通达信行业（一级、二级）和概念板块。板块净流入 = 成分股合计；板块涨跌 = 成分股按前一天流通市值加权。</li>
+      </ul>
+      <h3>回归怎么做</h3>
+      <p>想回答的问题：某个资金流指标比同一天的平均水平高 1 个标准差时，股票<b>第二天</b>和<b>之后一周</b>（5 个交易日，从当天收盘到第 5 个交易日收盘）平均涨跌多少，和 0 比。</p>
+      <p>三个指标分别各做一套：<b>占流通市值</b>、<b>占成交额</b>（标准化后的）和<b>净流入金额</b>（绝对值）。每个交易日，用当天所有股票做一次回归：<b>之后的涨跌 = a + b × 资金流</b>。资金流先在当天的 1% 和 99% 分位处截断，再在当天的股票之间标准化（0 = 当天平均，1 = 高出 1 个标准差）。所以 <b>a + b</b> 就是资金流比当天平均高 1 个标准差的股票的预计涨跌。表里是所有交易日的平均；t 值检验它是不是和 0 有差别，用 Newey–West 修正（相邻几天的“之后一周”是重叠的）。|t| ≥ 2 大致表示不太像偶然。</p>
+      <p>这个数包含了整个市场本身的涨跌：样本期里大盘涨，所有股票的数都会偏正。把鼠标放在格子上，可以看到 1 个标准差在原来单位下大约是多少。</p>
+      <p>例：“过去 7 日 · 占流通市值 · 第二天”格子是 +0.15%（t = 2.5），意思是：过去 7 天净流入占流通市值比同一天平均高 1 个标准差的股票，第二天平均涨 0.15%。</p>
+      <p><b>按流入时价格分开看：</b>“上涨”只用过去 k 天价格上涨的股票（流入时价格变动大于 0），“下跌”只用价格下跌的（小于 0），在这一组里同样做回归，看资金流比当天平均高 1 个标准差时之后的涨跌。1 个标准差仍然按当天全部股票算，所以三种情况里它的意思一样。价格没变的股票不算进上涨，也不算进下跌。</p>
+      <p>板块的做法相同，用板块指数涨跌，只算成分股不少于 3 只的板块。</p>
+      <h3>局限</h3>
+      <ul>
+        <li>逐笔是每 3 秒的快照，一行里可能合了好几笔订单，所以没有分大单、小单。</li>
+        <li>流通股本用的是最新值，过去的解禁变化没有反映。</li>
+        <li>股票名单是今天还在上市的股票，期间退市的不在里面。</li>
+        <li>概念板块每个最多 400 只成分股（通达信文件的上限），成分是今天的。</li>
+        <li>涨跌没有扣手续费和买卖价差，也没考虑涨停买不进、跌停卖不出。这是统计分析，不是交易回测，没有设账户资金限制。</li>
+      </ul>
+    </div>
+  </section>
+</main>
+<script>
+const K = [1, 3, 7, 14, 30, 60, 120], H_SHOWN = [1, 5];
+const store = { get(k, d) { try { const v = localStorage.getItem("cnflow." + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+                set(k, v) { try { localStorage.setItem("cnflow." + k, JSON.stringify(v)); } catch (e) {} } };
+const FLOW = { pct_float: "占流通市值", pct_turnover: "占成交额", net: "净流入金额" };
+const S = { tab: store.get("tab", "stocks"), k: store.get("k", 1), flow: store.get("flow", "pct_float"),
+  stocks: { order: "desc", q: "", industry: "", offset: 0 },
+  sectors: { type: "hy1", order: "desc", q: "", offset: 0 },
+  reg: { level: "stock", cond: "all", rows: null } };
+if (!FLOW[S.flow]) S.flow = "pct_float";
+S.stocks.sort = S.sectors.sort = S.flow;
+const PAGE = 100;
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+// amounts: 亿 from 1 亿 up, else 万; a sign only when the shown figure is not zero (− is U+2212 throughout)
+const yi = (v, signed) => {
+  if (v == null) return "–";
+  const big = Math.abs(v) >= 1e8, s = big ? (Math.abs(v) / 1e8).toFixed(2) : Math.round(Math.abs(v) / 1e4).toLocaleString();
+  const zero = +s.replace(/,/g, "") === 0;
+  return (zero ? "" : v < 0 ? "−" : signed ? "+" : "") + s + (big ? " 亿" : " 万");
+};
+const sgn = (v, d = 2, unit = "%") => {
+  if (v == null) return "–";
+  const s = Math.abs(v).toFixed(d);
+  return (+s === 0 ? "" : v > 0 ? "+" : "−") + s + unit;
+};
+const num = (v, d = 2) => v == null ? "–" : v.toFixed(d);
+const day = s => s ? `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6)}` : "–";
+
+function bar(v, max) {
+  const w = max > 0 && v != null ? Math.min(100, 100 * Math.abs(v) / max) : 0;
+  return `<span class="bar" aria-hidden="true"><span>${v < 0 ? `<i style="width:${w}%"></i>` : ""}</span><span>${v > 0 ? `<i style="width:${w}%"></i>` : ""}</span></span>`;
+}
+
+function segK(el, which) {
+  el.innerHTML = K.map(k => `<button data-v="${k}" class="${k === S.k ? "on" : ""}">${k}</button>`).join("");
+  el.onclick = e => { const b = e.target.closest("button"); if (!b) return; S.k = +b.dataset.v; store.set("k", S.k);
+    document.querySelectorAll("[data-k] button").forEach(x => x.classList.toggle("on", +x.dataset.v === S.k));
+    S.stocks.offset = S.sectors.offset = 0; load(); };
+}
+document.querySelectorAll("[data-k]").forEach(el => segK(el));
+
+function seg(id, cb) {
+  $(id).onclick = e => { const b = e.target.closest("button"); if (!b) return;
+    $(id).querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); cb(b.dataset.v); };
+}
+// the flow measure: sorts both tables and sets what the bar shows; a click on one of its column heads also sets it
+function setFlow(v) {
+  S.flow = v; store.set("flow", v);
+  document.querySelectorAll("[data-flow] button").forEach(x => x.classList.toggle("on", x.dataset.v === v));
+}
+document.querySelectorAll("[data-flow]").forEach(el => {
+  el.innerHTML = Object.entries(FLOW).map(([v, h]) => `<button data-v="${v}">${h}</button>`).join("");
+  el.onclick = e => { const b = e.target.closest("button"); if (!b) return; setFlow(b.dataset.v);
+    for (const st of [S.stocks, S.sectors]) { st.sort = S.flow; st.order = "desc"; st.offset = 0; } load(); };
+});
+setFlow(S.flow);
+seg("g-type", v => { S.sectors.type = v; S.sectors.offset = 0; load(); });
+seg("r-level", v => { S.reg.level = v; drawReg(); });
+seg("r-cond", v => { S.reg.cond = v; drawReg(); });
+
+let timer;
+function onSearch(id, st) { $(id).oninput = e => { clearTimeout(timer); timer = setTimeout(() => { st.q = e.target.value; st.offset = 0; load(); }, 250); }; }
+onSearch("s-q", S.stocks); onSearch("g-q", S.sectors);
+$("s-ind").onchange = e => { S.stocks.industry = e.target.value; S.stocks.offset = 0; load(); };
+
+document.querySelector("nav").onclick = e => { const b = e.target.closest("button"); if (!b) return; showTab(b.dataset.tab); };
+function showTab(t) {
+  S.tab = t; store.set("tab", t);
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
+  document.querySelectorAll("main section").forEach(s => s.classList.toggle("on", s.id === t));
+  load();
+}
+
+function head(cols, st) {
+  return "<thead><tr>" + cols.map(c => {
+    const on = c.sort && st.sort === c.sort;
+    const arrow = on ? (st.order === "desc" ? " ↓" : " ↑") : "";
+    const h = c.bar ? `<span class="muted">${FLOW[S.flow]}</span>` : c.h;
+    return `<th class="${c.l ? "l" : ""} ${on ? "sorted" : ""}" ${c.sort ? `data-sort="${c.sort}"` : ""} title="${esc(c.tip || "")}">${h}${arrow}</th>`;
+  }).join("") + "</tr></thead>";
+}
+function sortable(tableId, st) {
+  $(tableId).querySelector("thead").onclick = e => { const th = e.target.closest("th[data-sort]"); if (!th) return;
+    const c = th.dataset.sort; if (st.sort === c) st.order = st.order === "desc" ? "asc" : "desc"; else { st.sort = c; st.order = "desc"; }
+    if (FLOW[c]) setFlow(c);
+    st.offset = 0; load(); };
+}
+function pager(id, st, total) {
+  const pages = Math.max(1, Math.ceil(total / PAGE)), p = Math.floor(st.offset / PAGE) + 1;
+  $(id).innerHTML = `<button ${p <= 1 ? "disabled" : ""} data-d="-1">上一页</button><span>第 ${p} / ${pages} 页 · 共 ${total.toLocaleString()} 条</span><button ${p >= pages ? "disabled" : ""} data-d="1">下一页</button>`;
+  $(id).onclick = e => { const b = e.target.closest("button[data-d]"); if (!b || b.disabled) return; st.offset += PAGE * +b.dataset.d; load(); window.scrollTo(0, 0); };
+}
+
+const STOCK_COLS = [
+  { h: "排名" }, { h: "代码", l: 1 }, { h: "名称", l: 1 }, { h: "行业", l: 1 },
+  { h: "占流通市值", sort: "pct_float", tip: "净流入 ÷ 流通市值" },
+  { h: "占成交额", sort: "pct_turnover", tip: "净流入 ÷ 同期成交额 = 平均每天净流入 ÷ 平均每天成交额" },
+  { h: "净流入", sort: "net", tip: "过去 k 个交易日净流入合计（主动买 − 主动卖），金额" },
+  { bar: 1, tip: "条形 = 当前排序口径：向右红色为流入，向左绿色为流出（按本页最大值缩放）" },
+  { h: "流入时价格变动", sort: "ret", tip: "和资金流同一个 k 日窗口：k 个交易日前收盘 → 最新收盘，复权" },
+  { h: "收盘价", sort: "close" }, { h: "流通市值", sort: "float_cap" }, { h: "同期成交额", sort: "turnover" }];
+const SECTOR_COLS = [
+  { h: "排名" }, { h: "板块", l: 1 }, { h: "成分股", sort: "members" },
+  { h: "占流通市值", sort: "pct_float", tip: "成分股净流入合计 ÷ 成分股流通市值合计" },
+  { h: "占成交额", sort: "pct_turnover", tip: "成分股净流入合计 ÷ 成分股同期成交额合计" },
+  { h: "净流入", sort: "net", tip: "成分股净流入合计，金额" }, { bar: 1, tip: "条形 = 当前排序口径" },
+  { h: "流入时价格变动", sort: "ret", tip: "和资金流同一个 k 日窗口；成分股按前一天流通市值加权，复权" }, { h: "同期成交额", sort: "turnover" },
+  { h: "流入最多的成分股（按排序口径）", l: 1 }];
+
+async function get(url) { const r = await fetch(url); return r.json(); }
+
+async function loadStocks() {
+  const st = S.stocks;
+  const u = `/api/stocks?k=${S.k}&sort=${st.sort}&order=${st.order}&q=${encodeURIComponent(st.q)}&industry=${encodeURIComponent(st.industry)}&limit=${PAGE}&offset=${st.offset}`;
+  const d = await get(u);
+  const sel = $("s-ind");
+  if (sel.options.length <= 1 && d.industries) sel.innerHTML = `<option value="">全部</option>` + d.industries.map(x => `<option>${esc(x)}</option>`).join("");
+  const f = S.flow, max = Math.max(0, ...d.rows.map(r => Math.abs(r[f] || 0)));
+  const body = d.rows.length ? d.rows.map(r => `<tr><td class="muted">${r.rank}</td><td class="l">${esc(r.code)}</td>
+    <td class="l">${esc(r.name)}${r.limit ? `<span class="tag ${r.limit === "涨停" ? "up" : "dn"}">${esc(r.limit)}</span>` : ""}</td>
+    <td class="l muted">${esc(r.industry)}</td><td>${sgn(r.pct_float, 3)}</td><td>${sgn(r.pct_turnover, 1)}</td>
+    <td>${yi(r.net, true)}</td><td class="l">${bar(r[f], max)}</td><td>${sgn(r.ret)}</td><td>${num(r.close)}</td>
+    <td>${yi(r.float_cap)}</td><td>${yi(r.turnover)}</td></tr>`).join("")
+    : `<tr><td colspan="12" class="empty">${S.k > (META.days || 0) ? `数据还不够 ${S.k} 个交易日（现有 ${META.days || 0} 天），历史数据下载完后就有。` : "没有符合条件的股票"}</td></tr>`;
+  $("s-table").innerHTML = head(STOCK_COLS, st) + "<tbody>" + body + "</tbody>";
+  sortable("s-table", st); pager("s-pager", st, d.total);
+}
+
+async function loadSectors() {
+  const st = S.sectors;
+  const d = await get(`/api/sectors?k=${S.k}&type=${st.type}&sort=${st.sort}&order=${st.order}&q=${encodeURIComponent(st.q)}&limit=${PAGE}&offset=${st.offset}`);
+  const f = S.flow, max = Math.max(0, ...d.rows.map(r => Math.abs(r[f] || 0)));
+  const body = d.rows.length ? d.rows.map(r => `<tr><td class="muted">${r.rank}</td><td class="l">${esc(r.name)}</td><td>${r.members}</td>
+    <td>${sgn(r.pct_float, 3)}</td><td>${sgn(r.pct_turnover, 1)}</td><td>${yi(r.net, true)}</td><td class="l">${bar(r[f], max)}</td>
+    <td>${sgn(r.ret)}</td><td>${yi(r.turnover)}</td><td class="l muted">${esc(r["leaders_" + f])}</td></tr>`).join("")
+    : `<tr><td colspan="10" class="empty">${S.k > (META.days || 0) ? `数据还不够 ${S.k} 个交易日。` : "没有符合条件的板块"}</td></tr>`;
+  $("g-table").innerHTML = head(SECTOR_COLS, st) + "<tbody>" + body + "</tbody>";
+  sortable("g-table", st); pager("g-pager", st, d.total);
+}
+
+const HN = { 1: "第二天", 5: "之后一周" };
+function tint(t) {
+  if (t == null) return "";
+  const a = Math.min(Math.abs(t), 4) / 4 * 0.38;
+  return `background: color-mix(in srgb, ${t > 0 ? "var(--up)" : "var(--down)"} ${Math.round(a * 100)}%, var(--surface));`;
+}
+// one standard deviation of an indicator, in its own units
+const sdText = (ind, v) => v == null ? "–" : ind === "net" ? yi(v) : ind === "pct_float" ? v.toFixed(3) + "%" : v.toFixed(1) + "%";
+function drawReg() {
+  const rows = (S.reg.rows || []).filter(r => r.level === S.reg.level && r.indicator && (r.cond || "all") === S.reg.cond);
+  if (!rows.length) { $("r-table").innerHTML = `<tbody><tr><td class="empty">还没有结果：回归要等历史数据下载完（需要几个月的数据才有意义）。</td></tr></tbody>`; $("r-explain").textContent = ""; return; }
+  const cell = (ind, k, h) => rows.find(r => r.indicator === ind && r.k === k && r.h === h);
+  const unitName = S.reg.level === "stock" ? "股票" : "板块";
+  let html = `<thead><tr><th class="l" rowspan="2">过去资金流窗口</th>${Object.values(FLOW).map(n => `<th colspan="2" class="g">${n}</th>`).join("")}</tr>
+    <tr>${Object.keys(FLOW).map(() => H_SHOWN.map((h, i) => `<th class="${i ? "" : "g"}">${HN[h]}</th>`).join("")).join("")}</tr></thead><tbody>`;
+  for (const k of K) {
+    html += `<tr><th class="rowh">过去 ${k} 日</th>` + Object.keys(FLOW).map(ind => H_SHOWN.map((h, i) => {
+      const r = cell(ind, k, h), g = i ? "" : "g";
+      if (!r || r.ret_1sd == null || r.t == null) return `<td class="muted ${g}" title="${r ? `只有 ${r.days} 个交易日，不够算` : ""}">–</td>`;
+      const tip = `1 个标准差 ≈ ${sdText(ind, r.sd)}；交易日 ${r.days} 个，平均每天 ${Math.round(r.mean_n)} 个${unitName}；为正的天数占 ${Math.round(100 * r.share_pos)}%`;
+      return `<td class="${g} ${r.t != null && Math.abs(r.t) >= 2 ? "sig" : ""}" style="${tint(r.t)}" title="${esc(tip)}"><span class="v">${sgn(r.ret_1sd, 3)}</span><span class="t">t = ${r.t == null ? "–" : r.t.toFixed(1)}</span></td>`;
+    }).join("")).join("") + "</tr>";
+  }
+  $("r-table").innerHTML = html + "</tbody>";
+  const a = cell("pct_float", 7, 1), b = cell("pct_float", 7, 5);
+  const tt = r => r.t == null ? "–" : r.t.toFixed(1);
+  $("r-explain").innerHTML = a && b ? `怎么读：以“过去 7 日 · 占流通市值”为例，过去 7 天净流入占流通市值比同一天平均高 1 个标准差（约 ${sdText("pct_float", a.sd)}）${{ all: "", up: "、并且这 7 天价格是上涨的", down: "、并且这 7 天价格是下跌的" }[S.reg.cond]}的${unitName}，第二天平均涨跌 <b>${sgn(a.ret_1sd, 3)}</b>（t = ${tt(a)}），之后一周平均涨跌 <b>${sgn(b.ret_1sd, 3)}</b>（t = ${tt(b)}）。都是和 0 比的实际涨跌。`
+      + `<br>样本期 ${day(META.first_day)} 至 ${day(META.last_day)}。涨跌未扣交易成本，这是统计分析，不是交易回测。`
+    : "";
+}
+async function loadReg() { if (!S.reg.rows) S.reg.rows = await get("/api/regression"); drawReg(); }
+
+let META = {};
+async function loadMeta() {
+  META = await get("/api/meta");
+  const c = META.collected || {}, u = META.update || {}, s = META.sync || {};
+  const syncText = { checking: "正在检查 GitHub 上的新结果…", downloading: "正在从 GitHub 下载最新结果…",
+    error: `连不上 GitHub（${s.checked || ""}），20 分钟后重试` }[s.state];
+  $("status").textContent = META.last_day
+    ? `数据到 ${day(META.last_day)}（${META.days} 个交易日，${(META.stocks || 0).toLocaleString()} 只股票）` + (u.time ? ` · 上次更新 ${u.time}（北京时间）` : "") +
+      (c.days && c.days !== META.days ? ` · 已下载 ${c.days} 天，正在补齐历史` : "") + (s.state === "error" ? ` · ${syncText}` : "")
+    : (c.days ? `已下载 ${c.days} 天，等待第一次分析` : (syncText || "还没有数据：正在准备"));
+  document.querySelectorAll(".fresh").forEach(e => e.innerHTML = META.last_day
+    ? `<b>每日实时</b>：排行用的是截至 ${day(META.last_day)} 收盘的逐笔成交，每个交易日收盘后更新。`
+    : "<b>每日实时</b>：每个交易日收盘后更新。");
+}
+async function load() {
+  try {
+    if (S.tab === "stocks") await loadStocks();
+    else if (S.tab === "sectors") await loadSectors();
+    else if (S.tab === "reg") await loadReg();
+  } catch (e) { $("status").textContent = "读取失败：数据服务没响应，关掉窗口再从桌面快捷方式打开"; }
+}
+const fromHash = location.hash.slice(1);
+loadMeta().then(() => showTab(["stocks", "sectors", "reg", "help"].includes(fromHash) ? fromHash : S.tab));
+async function poll() {                           // every minute; every 3 s while the first results are on their way
+  const before = META.generated + META.last_day;
+  try { await loadMeta(); } catch (e) {}
+  if (META.generated + META.last_day !== before) { S.reg.rows = null; load(); }
+  setTimeout(poll, META.last_day ? 60000 : 3000);
+}
+setTimeout(poll, 3000);
+</script>
+</body>
+</html>

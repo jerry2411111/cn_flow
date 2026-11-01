@@ -1,0 +1,42 @@
+# Packs the desktop program (app.py, ui.py, sync.py and the page) into cn_flow-windows.zip with PyInstaller and attaches
+# it to the release that was published (tags v*), or keeps it as a workflow artifact when run by hand.
+name: build the program
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.release.tag_name, 'v')
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - run: pip install -r requirements-app.txt pyinstaller
+
+      - run: pyinstaller --noconfirm --windowed --name cn_flow --icon ui/icon.ico --add-data "ui;ui" app.py
+
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path dist/cn_flow -DestinationPath cn_flow-windows.zip
+
+      - name: Attach to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" cn_flow-windows.zip --clobber
+
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch'
+        with:
+          name: cn_flow-windows
+          path: cn_flow-windows.zip
